@@ -1,12 +1,10 @@
-const expectThrow = require('./utils').expectThrow
-const HumanStandardTokenAbstraction = artifacts.require('HumanStandardToken')
-const SampleRecipientSuccess = artifacts.require('SampleRecipientSuccess')
-const SampleRecipientThrow = artifacts.require('SampleRecipientThrow')
+const expectThrow = require('../utils').expectThrow
+const EIP20Abstraction = artifacts.require('EIP20')
 let HST
 
-contract('HumanStandardToken', function (accounts) {
+contract('EIP20', function (accounts) {
   beforeEach(async () => {
-    HST = await HumanStandardTokenAbstraction.new(10000, 'Simon Bucks', 1, 'SBX', {from: accounts[0]})
+    HST = await EIP20Abstraction.new(10000, 'Simon Bucks', 1, 'SBX', {from: accounts[0]})
   })
 
   it('creation: should create an initial balance of 10000 for the creator', async () => {
@@ -27,7 +25,7 @@ contract('HumanStandardToken', function (accounts) {
 
   it('creation: should succeed in creating over 2^256 - 1 (max) tokens', async () => {
     // 2^256 - 1
-    let HST2 = await HumanStandardTokenAbstraction.new('115792089237316195423570985008687907853269984665640564039457584007913129639935', 'Simon Bucks', 1, 'SBX', {from: accounts[0]})
+    let HST2 = await EIP20Abstraction.new('115792089237316195423570985008687907853269984665640564039457584007913129639935', 'Simon Bucks', 1, 'SBX', {from: accounts[0]})
     const totalSupply = await HST2.totalSupply()
     const match = totalSupply.equals('1.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77')
     assert(match, 'result is not correct')
@@ -74,21 +72,6 @@ contract('HumanStandardToken', function (accounts) {
     assert.strictEqual(allowance.toNumber(), 100)
   })
 
-  it('approvals: msg.sender should approve 100 to SampleRecipient and then NOTIFY SampleRecipient. It should succeed.', async () => {
-    let SRS = await SampleRecipientSuccess.new({from: accounts[0]})
-    await HST.approveAndCall(SRS.address, 100, '0x42', {from: accounts[0]})
-    const allowance = await HST.allowance.call(accounts[0], SRS.address)
-    assert.strictEqual(allowance.toNumber(), 100)
-
-    const value = await SRS.value.call()
-    assert.strictEqual(value.toNumber(), 100)
-  })
-
-  it('approvals: msg.sender should approve 100 to SampleRecipient and then NOTIFY SampleRecipient and throw.', async () => {
-    let SRS = await SampleRecipientThrow.new({from: accounts[0]})
-    return expectThrow(HST.approveAndCall.call(SRS.address, 100, '0x42', {from: accounts[0]}))
-  })
-
   // bit overkill. But is for testing a bug
   it('approvals: msg.sender approves accounts[1] of 100 & withdraws 20 once.', async () => {
     const balance0 = await HST.balanceOf.call(accounts[0])
@@ -98,7 +81,7 @@ contract('HumanStandardToken', function (accounts) {
     const balance2 = await HST.balanceOf.call(accounts[2])
     assert.strictEqual(balance2.toNumber(), 0, 'balance2 not correct')
 
-    HST.transferFrom.call(accounts[0], accounts[2], 20, {from: accounts[1]})
+    await HST.transferFrom.call(accounts[0], accounts[2], 20, {from: accounts[1]})
     await HST.allowance.call(accounts[0], accounts[1])
     await HST.transferFrom(accounts[0], accounts[2], 20, {from: accounts[1]}) // -20
     const allowance01 = await HST.allowance.call(accounts[0], accounts[1])
@@ -158,18 +141,18 @@ contract('HumanStandardToken', function (accounts) {
 
     // FIRST tx done.
     // onto next.
-    await expectThrow(HST.transferFrom.call(accounts[0], accounts[2], 60, {from: accounts[1]}))
+    expectThrow(HST.transferFrom.call(accounts[0], accounts[2], 60, {from: accounts[1]}))
   })
 
-  it('approvals: attempt withdrawal from account with no allowance (should fail)', function () {
+  it('approvals: attempt withdrawal from account with no allowance (should fail)', () => {
     return expectThrow(HST.transferFrom.call(accounts[0], accounts[2], 60, {from: accounts[1]}))
   })
 
   it('approvals: allow accounts[1] 100 to withdraw from accounts[0]. Withdraw 60 and then approve 0 & attempt transfer.', async () => {
-    HST.approve(accounts[1], 100, {from: accounts[0]})
-    HST.transferFrom(accounts[0], accounts[2], 60, {from: accounts[1]})
-    HST.approve(accounts[1], 0, {from: accounts[0]})
-    await expectThrow(HST.transferFrom.call(accounts[0], accounts[2], 10, {from: accounts[1]}))
+    await HST.approve(accounts[1], 100, {from: accounts[0]})
+    await HST.transferFrom(accounts[0], accounts[2], 60, {from: accounts[1]})
+    await HST.approve(accounts[1], 0, {from: accounts[0]})
+    expectThrow(HST.transferFrom.call(accounts[0], accounts[2], 10, {from: accounts[1]}))
   })
 
   it('approvals: approve max (2^256 - 1)', async () => {
